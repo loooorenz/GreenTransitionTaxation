@@ -126,7 +126,7 @@ def check():
     resolution = 200 # resolution of test
     T_array = np.linspace(0, 20, resolution) # 20 is the maximum tax tested
     
-    for period in range(periods):
+    for period in range(periods-1):
         print(f"Check period {period}.")
         for i in range(gridsize):                       # every μ
             for j in range(gridsize):                   # every γ
