@@ -1,13 +1,12 @@
 import numpy as np
-from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 from scipy.interpolate import interpn
 
-
-""" Set parameters """
+""" Parameters """
 
 σ = 0.5                 # substitution elasticitiy 
 g = 0.5                 # preference shift 
-χ = 3.0                   # marginal brown cost
+χ = 3                   # marginal brown cost
 ζ = 1                   # additional marginal green cost
 m = 0.3                 # fixed cost (m*i)
 λ = 8                   # marginal damage of the externality    
@@ -78,8 +77,8 @@ def initialization():                   # sets the parameter variables according
 
     t = -σ*(χ+ζ)                    # green tax is fixed to the static green tax
     T_static = (1-σ)*λ-σ*χ          # static brown tax
-
-
+    
+    
 
 """ Model functions """
 
@@ -114,133 +113,77 @@ def Y(T,μ,γ):                           # aggregated demand for brown goods \b
     return (1-γ) * (1-μ*g) * ((χ+T)/(1-σ))**(-1/σ)
 
 
+""" Number of Extrema Check """
 
-""" Optimization using backward induction """
-
-def optimization():
+def check():
+    # Checks if value function V has exactly 1 extremum so that the optimization result is valid
     
-    R = np.zeros((periods,gridsize,gridsize))       # welfare of current and all future periods with optimal brown tax, given period, μ, and γ
-    T = np.zeros((periods,gridsize,gridsize))       # optimal brown tax T, given period, μ, and γ
+    # Load data
+    R = np.load(f'data/{filename} R.npy')
+    T = np.load(f'data/{filename} T.npy')
     
-    period = periods-1                              # last period: optimize Ω instead of V
-    print("Calculating period",period)
-    for i in range(gridsize):                       # every μ
-        for j in range(gridsize):                   # every γ
-            res = minimize(Ω, x0=(T_static), args=(μ_array[i],γ_array[j]), bounds=[(0,20)], tol=1e-12) #tol=1e-10 
-            R[period,i,j] = -res.fun                # optimal welfare given μ, γ
-            T[period,i,j] = res.x.item()            # optimal T given μ, γ
-    period -= 1
+    # Optimization variable to test
+    resolution = 200 # resolution of test
+    T_array = np.linspace(0, 20, resolution) # 20 is the maximum tax tested
     
-    while period >= 0:                   
-        print("Calculating period",period)
-        for i in range(gridsize):                   # every μ
-            for j in range(gridsize):               # every γ
-                res = minimize(V, x0=(T[period+1,i,j]), args=(μ_array[i],γ_array[j],period,R), bounds=[(0,20)], tol=1e-12) 
-                R[period,i,j] = -res.fun            # optimal welfare of current and future periods given μ, γ
-                T[period,i,j] = res.x.item()        # optimal T given μ, γ
-        period -= 1
+    for period in range(periods):
+        print(f"Check period {period}.")
+        for i in range(gridsize):                       # every μ
+            for j in range(gridsize):                   # every γ
         
-    np.save(f'data/{filename} R',R)
-    np.save(f'data/{filename} T',T)
-    
-    return T
+                V_array = np.zeros(resolution) # the negative value function values for different tax rates T at period period
+                for k in range(resolution):
+                    V_array[k] = V(T_array[k],μ_array[i],γ_array[j],period,R)
+                                    
+                T_opt = T_array[np.argmin(V_array)]
+                V_opt = np.min(V_array)
+                T_stored = T[period,i,j]
+                V_stored = V(T_stored,μ_array[i],γ_array[j],period,R)
+            
+                
+                #print(T_opt,T[period,μ,γ])
+                
+                if abs((T_opt-T_stored)/(T_opt+0.001)) > 0.03 and abs((V_opt-V_stored)/(V_opt+0.001)) > 0.005: 
+                    # it is checked if there is a difference in T_opt
+                    # 3% can be lowered, but with a resolution of 200, one step is already 0.1 which is 10% if the tax is 1
+                    # then, it is confirmed that this difference has an impact on the value function of more than 0.5% (can also be lowered)
+                    
+                    print(f"Difference in optimal tax rate detected. μ={np.round(μ_array[i],2)},γ={np.round(γ_array[j],2)},period={period}.")
+                    print(f"Optimal T in array: {np.round(T_opt,2)}, optimal stored T: {np.round(T[period,i,j],2)}, deviation: {np.round(100*abs((T_opt-T[period,i,j])/(T_opt+0.01)),2)}%")
+                    plt.figure()
+                    plt.plot(T_array,-V_array)
+                    plt.axvline(x=T_opt,linestyle='--')
+                    plt.axvline(x=T_stored,linestyle=':')
+                    plt.xlabel("Tax T")
+                    plt.ylabel("Value function V")
+                    plt.grid()
+                            
+    print("Check completed for all periods.")
 
 
 
-""" Forward tracking """
+""" Run check for all parameter sets """
 
-def tracking():
-    
-    global t
-    
-    """ Optimized tax """
-    
-    track = np.zeros((periods,6))       # axis 1: [0]: μ, [1]: γ, [2]: T, [3]: Ω, [4]: y, [5]: Y
-    period = 0
-    μ = μ0
-    γ = γ0
-
-    while period < periods:
-        track[period,0] = μ
-        track[period,1] = γ
-        track[period,2] = interpn((μ_array,γ_array),T[period,:,:],(μ,γ),method='linear')
-        track[period,3] = -Ω(track[period,2],μ,γ)
-        track[period,4] = y(μ,γ)
-        track[period,5] = Y(track[period,2],μ,γ)
-        μ = μ_(track[period,2],μ,γ)
-        γ = γ_(track[period,2],μ,γ)
-        period += 1
-    
-    np.save(f'data/{filename} Track',track)
-    
-    
-    """ Static tax """
-    
-    track = np.zeros((periods,6))     
-    period = 0
-    μ = μ0
-    γ = γ0
-
-    while period < periods:
-        track[period,0] = μ
-        track[period,1] = γ
-        track[period,2] = T_static
-        track[period,3] = -Ω(track[period,2],μ,γ)
-        track[period,4] = y(μ,γ)
-        track[period,5] = Y(track[period,2],μ,γ)
-        μ = μ_(track[period,2],μ,γ)
-        γ = γ_(track[period,2],μ,γ)
-        period += 1
-    
-    np.save(f'data/{filename} Track_static',track)
-    
-    
-    """ No tax """
-    
-    t_temp = t
-    t = 0
-    track = np.zeros((periods,6))       
-    period = 0
-    μ = μ0
-    γ = γ0
-
-    while period < periods:
-        track[period,0] = μ
-        track[period,1] = γ
-        track[period,2] = 0
-        track[period,3] = -Ω(0,μ,γ)
-        track[period,4] = y(μ,γ)
-        track[period,5] = Y(track[period,2],μ,γ)
-        μ = μ_(0,μ,γ)
-        γ = γ_(0,μ,γ)
-        period += 1
-    
-    np.save(f'data/{filename} Track_zero',track)
-    
-    t = t_temp
-    
-    
-
-""" Run Optimization """
-
-# Optimization for the base case
-
-print("Optimization for the base case.")
+print("Checking that the optimal tax rate has been found.")
+# Check base case
 parameters = parameters_orig.copy()
 initialization()
 filename_orig = filename
-T = optimization()
-tracking()
-"""
+print("Check base case.")
+check()
 
-# Optimization for sensitivity analysis
+"""
+# Check sensitivity parameter sets
 for i in range(11):
     for j in ["up","down"]:
-        print(f"Optimization for {j}-deviation in {parameters_unicode[i]}.")
+        print(f"Check for {j}-deviation in {parameters_unicode[i]}.")
         parameters[i] = globals()[parameters_unicode[i]+"_"+j]                  # before it is parameters = parameters_orig, change of one parameter, e.g. to σ_up
         initialization()                                                        # sets the global parameter variables according to the array parameters
-        T = optimization()                 
-        tracking()                                     
+        check()                           
         parameters = parameters_orig.copy()                                     # reset of the array parameters to the base case
-"""      
+"""
+
+
+
+
 
