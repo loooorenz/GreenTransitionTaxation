@@ -113,11 +113,10 @@ def Y(T,μ,γ):                           # aggregated demand for brown goods \b
     return (1-γ) * (1-μ*g) * ((χ+T)/(1-σ))**(-1/σ)
 
 
-""" Number of Extrema Check """
+""" Confirm global maximum """
 
 def check():
-    # Checks if value function V has exactly 1 extremum so that the optimization result is valid
-    
+        
     # Load data
     R = np.load(f'data/{filename} R.npy')
     T = np.load(f'data/{filename} T.npy')
