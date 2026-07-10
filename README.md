@@ -3,7 +3,7 @@ Lorenz Dögnitz, Théo Konc, Linus Mattauch
 
 ## Overview
 - The whole simulation is contained in optimization.py. Parameters and model functions are defined first. Then, the backward induction alogrithm is applied by calling functions optimization() and tracking(). The loop for the sensitivity analysis can be found at the very end of the file.
-- Running file optimization_d=0.py recomputes the optimization with a value of value transition speed parameter d of 0.
+- Running file optimization_d=0.py recomputes the optimization with a value of 0 of the preference transition speed parameter d.
 - The file welfare_differences_d=0.py computes the welfare loss of wrongly assuming that preferences are fixed (not endogenous). The formulas are explained in Appendix A.4.
 - File global_maximum_check.py performs a sanity check of the solver results as explained in Appendix B.1.
 - File plots.py creates plots from the data created and stored while running optimization.py.
